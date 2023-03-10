@@ -31,7 +31,7 @@ class MyApp(BaseHTTPRequestHandler):
             self.send_html_file('message.html')
         else:
             if pathlib.Path().joinpath(pr_url.path[1:]).exists():
-                self.send_static(MAIN_DIR)
+                self.send_static()
             else:
                 self.send_html_file('error.html', 404)
 
@@ -42,15 +42,15 @@ class MyApp(BaseHTTPRequestHandler):
         with open(filename, 'rb') as fd:
             self.wfile.write(fd.read())
 
-    def send_static(self, filename, status_code = 200):
+    def send_static(self, status_code = 200):
         self.send_response(status_code)
-        mt = mimetypes.guess_type(filename)
+        mt = mimetypes.guess_type(self.path)
         if mt:
             self.send_header("Content-type", mt[0])
         else:
             self.send_header("Content-type", 'text/plain')
         self.end_headers()
-        with open(filename, 'rb') as file:
+        with open(f'.{self.path}', 'rb') as file:
             self.wfile.write(file.read())
 
 def info_save(data):
@@ -58,24 +58,17 @@ def info_save(data):
     try:
         data_dict = {key: value for key, value in [el.split('=') for el in parse_data.split('&')]}
         data_save = {str(datetime.now()): data_dict}
-        data_dir = pathlib.Path().joinpath("starage")
-        file_dir = data_dir / 'data.json'
-        if file_dir.exists():
-            with open("storage/data.json", "a", encoding='utf-8') as fd:
-                json.dump(data_save, fd, ensure_ascii=False, indent=4)
-        else:
-            data_dir.mkdir(exist_ok=True)
-            with open("storage/data.json", "w", encoding='utf-8') as fd:
-                json.dump(data_save, fd, ensure_ascii=False, indent=4)
-
+        with open("storage/data.json", "a", encoding='utf-8') as fd:
+            json.dump(data_save, fd, ensure_ascii=False, indent=4)
     except ValueError as err:
         logging.debug(f"In data {data_dict} error {err}")
     except OSError as err:
         logging.debug(f"In data {data_dict} error {err}")
 
 def http_server_run():
-    server_address = ('localhost', 3000)
+    server_address = ('0.0.0.0', HTTP_PORT)
     http = HTTPServer(server_address, MyApp)
+    logging.info("HTTP Server starting")
     try:
         http.serve_forever()
     except KeyboardInterrupt:
@@ -84,10 +77,11 @@ def http_server_run():
 
 def socket_server_run(host, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    logging.info("SOCKET Server starting")
     sock.bind((host, port))
     try:
         while True:
-            message, address = sock.recvfrom(1024).decode()
+            message, address = sock.recvfrom(BUFFER_SIZE).decode()
             info_save(message)
     except KeyboardInterrupt:
         print(f'Destroy server')
@@ -97,6 +91,12 @@ def socket_server_run(host, port):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    data_dir = pathlib.Path().joinpath("storage")
+    file_dir = data_dir / 'data.json'
+    if not file_dir.exists():
+        data_dir.mkdir(exist_ok=True)
+        with open("storage/data.json", "w", encoding='utf-8') as fd:
+            json.dump({}, fd, ensure_ascii=False, indent=4)
     thread_server = Thread(target=http_server_run)
     thread_server.start()
 
