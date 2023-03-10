@@ -3,23 +3,26 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 import pathlib
 import mimetypes
-import threading
 import json
 import socket
 from threading import Thread
+from datetime import datetime
 
-HTTP_SERVER = '127.0.0.1'
 HTTP_PORT = 3000
 SOCKET_SERVER = '127.0.0.1'
 SOCKET_PORT = 5000
-
+MAIN_DIR = pathlib.Path()
+BUFFER_SIZE = 1024
 
 class MyApp(BaseHTTPRequestHandler):
     def do_POST(self):
-
+        len = self.headers.get('Content-Length')
+        data = self.rfile.read(int(len))
+        info_save(data)
         self.send_response(302)
         self.send_header('Location', '/')
         self.end_headers()
+
 
 
     def do_GET(self):
@@ -30,7 +33,7 @@ class MyApp(BaseHTTPRequestHandler):
             self.send_html_file('message.html')
         else:
             if pathlib.Path().joinpath(pr_url.path[1:]).exists():
-                self.send_static()
+                self.send_static(MAIN_DIR)
             else:
                 self.send_html_file('error.html', 404)
 
@@ -52,7 +55,17 @@ class MyApp(BaseHTTPRequestHandler):
         with open(filename, 'rb') as file:
             self.wfile.write(file.read())
 
-
+def info_save(data):
+    parse_data = urllib.parse.unquote_plus(data.decode())
+    try:
+        data_dict = {key: value for key, value in [el.split('=') for el in parse_data.split('&')]}
+        data_save = {str(datetime.now()): data_dict}
+        with open("storage/data.json", "a", encoding='utf-8') as fd:
+            json.dump(data_save, fd, ensure_ascii=False, indent=4)
+    except ValueError as err:
+        logging.debug(f"In data {data_dict} error {err}")
+    except OSError as err:
+        logging.debug(f"In data {data_dict} error {err}")
 
 def http_server_run():
     server_address = ('localhost', 3000)
@@ -64,14 +77,22 @@ def http_server_run():
         http.server_close()
 
 def socket_server_run(host, port):
-    pass
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((host, port))
+    try:
+        while True:
+            message, address = sock.recvfrom(1024).decode()
+            info_save(message)
+    except KeyboardInterrupt:
+        print(f'Destroy server')
+    finally:
+        sock.close()
 
 
 if __name__ == '__main__':
-    run()
-    logging.basicConfig(level=logging.DEBUG, format = )
+    logging.basicConfig(level=logging.DEBUG, format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     thread_server = Thread(target=http_server_run)
     thread_server.start()
 
-    thread_socket_server = Thread(target=socket_server_run)
+    thread_socket_server = Thread(target=socket_server_run, args = (SOCKET_SERVER, SOCKET_PORT))
     thread_socket_server.start()
