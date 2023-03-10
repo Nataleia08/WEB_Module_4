@@ -23,8 +23,6 @@ class MyApp(BaseHTTPRequestHandler):
         self.send_header('Location', '/')
         self.end_headers()
 
-
-
     def do_GET(self):
         pr_url = urllib.parse.urlparse(self.path)
         if pr_url.path == '/':
@@ -60,8 +58,16 @@ def info_save(data):
     try:
         data_dict = {key: value for key, value in [el.split('=') for el in parse_data.split('&')]}
         data_save = {str(datetime.now()): data_dict}
-        with open("storage/data.json", "a", encoding='utf-8') as fd:
-            json.dump(data_save, fd, ensure_ascii=False, indent=4)
+        data_dir = pathlib.Path().joinpath("starage")
+        file_dir = data_dir / 'data.json'
+        if file_dir.exists():
+            with open("storage/data.json", "a", encoding='utf-8') as fd:
+                json.dump(data_save, fd, ensure_ascii=False, indent=4)
+        else:
+            data_dir.mkdir(exist_ok=True)
+            with open("storage/data.json", "w", encoding='utf-8') as fd:
+                json.dump(data_save, fd, ensure_ascii=False, indent=4)
+
     except ValueError as err:
         logging.debug(f"In data {data_dict} error {err}")
     except OSError as err:
